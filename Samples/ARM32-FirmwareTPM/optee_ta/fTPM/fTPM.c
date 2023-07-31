@@ -454,8 +454,6 @@ static TEE_Result fTPM_HelloWorld_Concat(uint32_t  param_types,
                                          TEE_Param params[4]
 )
 {
-    uint8_t *cmdBuf, *respBuf;
-    uint32_t cmdLen, respLen;
     uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
                                TEE_PARAM_TYPE_MEMREF_OUTPUT,
                                TEE_PARAM_TYPE_NONE,
@@ -466,9 +464,6 @@ static TEE_Result fTPM_HelloWorld_Concat(uint32_t  param_types,
 #ifdef fTPMDebug
         IMSG("Bad param type(s)\n");
 #endif
-        IMSG("Bad param type(s)\n");
-        IMSG("Expected: %d", exp_param_types);
-        IMSG("Received: %d", param_types);
         return TEE_ERROR_BAD_PARAMETERS;
     }
 
