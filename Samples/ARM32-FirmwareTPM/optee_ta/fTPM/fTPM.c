@@ -42,6 +42,7 @@
 #include <pta_system.h>
 #include <fTPM_helpers.h>
 #include <fTPM_event_log.h>
+#include <pta_attestation.h>
 
 #include "fTPM.h"
 
@@ -450,6 +451,61 @@ static TEE_Result fTPM_Emulate_PPI(uint32_t  param_types,
     return TEE_SUCCESS;
 }
 
+static TEE_Result interact_with_attestation_pta() {
+    // The certificates are stored here in DER format
+    // For our certificates, they are always a bit smaller than 1000 bytes.
+    // We expect a certificate chain of length 5.
+    // Go give a 5 * 1000 bytes buffer 
+    uint8_t buffer_crts[5000];
+
+    // first element is length of chain
+    // Array size must be at least length of chain + 1
+    uint16_t buffer_offsets[8];
+
+    TEE_TASessionHandle session = TEE_HANDLE_NULL;
+    TEE_Result res = TEE_ERROR_GENERIC;
+    uint32_t ret_origin = 0;
+    const TEE_UUID pta_uuid = PTA_ATTESTATION_UUID;
+
+    const uint32_t param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
+                                 TEE_PARAM_TYPE_MEMREF_OUTPUT,
+                                 TEE_PARAM_TYPE_NONE,
+                                 TEE_PARAM_TYPE_NONE);
+
+    TEE_Param params[TEE_NUM_PARAMS] = {0};
+
+    res = TEE_OpenTASession(&pta_uuid, TEE_TIMEOUT_INFINITE, 0, NULL, &session, &ret_origin);
+    if (res != TEE_SUCCESS) {
+        EMSG("TEE_OpenTASession failed with code 0x%x origin 0x%x",
+             res, ret_origin);
+        return res;
+    }
+
+    memset(buffer_crts, 0, sizeof(buffer_crts));
+    memset(buffer_offsets, 0, sizeof(buffer_offsets));
+
+    params[0].memref.buffer = (void *)buffer_crts;
+    params[0].memref.size = sizeof(buffer_crts);
+
+    params[1].memref.buffer = buffer_offsets;
+    params[1].memref.size = sizeof(buffer_offsets);
+
+    res = TEE_InvokeTACommand(session, TEE_TIMEOUT_INFINITE,
+                              PTA_ATTESTATION_GET_EKCERT_CHAIN,
+                              param_types, params, &ret_origin);
+    TEE_CloseTASession(session);
+
+    if (res != TEE_SUCCESS) {
+        EMSG("TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
+             res, ret_origin);
+        return res;
+    }
+
+    IMSG("Certificate chain length: %d", buffer_offsets[0]);
+
+    return TEE_SUCCESS;
+}
+
 static TEE_Result fTPM_HelloWorld_Concat(uint32_t  param_types,
                                          TEE_Param params[4]
 )
@@ -472,6 +528,9 @@ static TEE_Result fTPM_HelloWorld_Concat(uint32_t  param_types,
     }
 
     snprintf(params[1].memref.buffer, 50, "Hello world %s!", params[0].memref.buffer);
+
+    interact_with_attestation_pta();
+
     return TEE_SUCCESS;
 }
 
