@@ -45,8 +45,7 @@
 /* The TAFs ID implemented in this TA */
 #define TA_FTPM_SUBMIT_COMMAND  (0)
 #define TA_FTPM_EMULATE_PPI     (1)
-#define TA_FTPM_HELLO_WORLD     (2)
-#define TA_FTPM_ATTEST          (3)
+#define TA_FTPM_ATTEST          (2)
 
 //
 // These must match values from reference/TPM/include/TpmProfile.h

@@ -480,32 +480,6 @@ static TEE_Result fTPM_Attest(uint32_t  param_types,
     return TEE_SUCCESS;
 }
 
-static TEE_Result fTPM_HelloWorld_Concat(uint32_t  param_types,
-                                         TEE_Param params[4]
-)
-{
-    uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_INPUT,
-                               TEE_PARAM_TYPE_MEMREF_OUTPUT,
-                               TEE_PARAM_TYPE_NONE,
-                               TEE_PARAM_TYPE_NONE);
-
-    // Validate parameter types
-    if (param_types != exp_param_types) {
-#ifdef fTPMDebug
-        IMSG("Bad param type(s)\n");
-#endif
-        return TEE_ERROR_BAD_PARAMETERS;
-    }
-
-    if (params[1].memref.size < 50) {
-        return TEE_ERROR_SHORT_BUFFER;
-    }
-
-    snprintf(params[1].memref.buffer, 50, "Hello world %s!", params[0].memref.buffer);
-
-    return TEE_SUCCESS;
-}
-
 // 
 // Called when a TA is invoked. Note, paramters come from normal world.
 // 
@@ -526,10 +500,6 @@ TEE_Result TA_InvokeCommandEntryPoint(void      *sess_ctx,
 
         case TA_FTPM_EMULATE_PPI: {
             return fTPM_Emulate_PPI(param_types, params);
-        }
-
-        case TA_FTPM_HELLO_WORLD: {
-            return fTPM_HelloWorld_Concat(param_types, params);
         }
 
         case TA_FTPM_ATTEST: {
