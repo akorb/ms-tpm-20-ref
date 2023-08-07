@@ -48,6 +48,16 @@
 
 #define TA_ALL_PARAM_TYPE(type) TEE_PARAM_TYPES(type, type, type, type)
 
+// The certificates are stored here in DER format
+// For our certificates, they are always a bit smaller than 1000 bytes.
+// We expect a certificate chain of length 5.
+// So, give a 5 * 1000 bytes buffer
+static uint8_t buffer_crts[5000];
+
+// first element is length of chain
+// Array size must be at least length of chain + 1
+static uint16_t buffer_sizes[8];
+
 //
 // Ensure we have only one active session
 //
@@ -130,6 +140,46 @@ static TEE_Result get_tpm_event_log(unsigned char *buf, size_t *len)
 }
 #endif // MEASURED_BOOT
 
+static TEE_Result do_attestation()
+{
+    uint32_t param_types = 0;
+    TEE_Param params[TEE_NUM_PARAMS] = { };
+
+    TEE_TASessionHandle session = TEE_HANDLE_NULL;
+    TEE_Result res = TEE_ERROR_GENERIC;
+    uint32_t ret_origin = 0;
+    const TEE_UUID pta_uuid = PTA_ATTESTATION_UUID;
+
+    res = TEE_OpenTASession(&pta_uuid, TEE_TIMEOUT_INFINITE, 0, NULL, &session, &ret_origin);
+    if (res != TEE_SUCCESS) {
+        EMSG("TEE_OpenTASession failed with code 0x%x origin 0x%x",
+             res, ret_origin);
+        return res;
+    }
+
+    param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT, TEE_PARAM_TYPE_MEMREF_OUTPUT,
+                                  TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE);
+
+    params[0].memref.buffer = buffer_crts;
+    params[0].memref.size = sizeof(buffer_crts);
+
+    params[1].memref.buffer = buffer_sizes;
+    params[1].memref.size = sizeof(buffer_sizes);
+
+    res = TEE_InvokeTACommand(session, TEE_TIMEOUT_INFINITE,
+                              PTA_ATTESTATION_GET_EKCERT_CHAIN,
+                              param_types, params, &ret_origin);
+    TEE_CloseTASession(session);
+
+    if (res != TEE_SUCCESS) {
+        EMSG("TEE_InvokeTACommand failed with code 0x%x origin 0x%x",
+             res, ret_origin);
+        return res;
+    }
+
+    return TEE_SUCCESS;
+}
+
 //
 // Called when TA instance is created. This is the first call to the TA.
 //
@@ -161,6 +211,8 @@ TEE_Result TA_CreateEntryPoint(void)
         }
         return TEE_SUCCESS;
     }
+
+    do_attestation();
 
     // Initialize NV admin state
     _admin__NvInitState();
@@ -453,29 +505,15 @@ static TEE_Result fTPM_Emulate_PPI(uint32_t  param_types,
 
 static TEE_Result fTPM_Attest(uint32_t  param_types,
                               TEE_Param params[4]) {
-
-    TEE_TASessionHandle session = TEE_HANDLE_NULL;
-    TEE_Result res = TEE_ERROR_GENERIC;
-    uint32_t ret_origin = 0;
-    const TEE_UUID pta_uuid = PTA_ATTESTATION_UUID;
-
-    res = TEE_OpenTASession(&pta_uuid, TEE_TIMEOUT_INFINITE, 0, NULL, &session, &ret_origin);
-    if (res != TEE_SUCCESS) {
-        EMSG("TEE_OpenTASession failed with code 0x%x origin 0x%x",
-             res, ret_origin);
-        return res;
+    if (params[0].memref.size < sizeof(buffer_crts) || params[1].memref.size < sizeof(buffer_sizes))
+    {
+        EMSG("Buffer for certificates: Given: %d. Required: %d", params[0].memref.size, sizeof(buffer_crts));
+        EMSG("Buffer for sizes: Given: %d. Required: %d", params[1].memref.size, sizeof(buffer_sizes));
+        return TEE_ERROR_SHORT_BUFFER;
     }
 
-    res = TEE_InvokeTACommand(session, TEE_TIMEOUT_INFINITE,
-                              PTA_ATTESTATION_GET_EKCERT_CHAIN,
-                              param_types, params, &ret_origin);
-    TEE_CloseTASession(session);
-
-    if (res != TEE_SUCCESS) {
-        EMSG("TEEC_InvokeCommand failed with code 0x%x origin 0x%x",
-             res, ret_origin);
-        return res;
-    }
+    memcpy(params[0].memref.buffer, buffer_crts, sizeof(buffer_crts));
+    memcpy(params[1].memref.buffer, buffer_sizes, sizeof(buffer_sizes));
 
     return TEE_SUCCESS;
 }
