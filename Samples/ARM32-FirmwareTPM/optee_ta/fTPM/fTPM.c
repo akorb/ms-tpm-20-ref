@@ -212,6 +212,10 @@ TEE_Result TA_CreateEntryPoint(void)
         return TEE_SUCCESS;
     }
 
+    // TODO: Ensure that user cannot change EK during runtime
+
+    // Maybe that's by design, or I need to configure it.
+    // TODO: Generate EPS, then EKpub, and give it to attestation function
     do_attestation();
 
     // Initialize NV admin state

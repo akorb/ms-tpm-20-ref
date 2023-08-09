@@ -50,7 +50,7 @@ attestation process."
 
 Our TCIs are SHA256 values. So, the CDI should be 256 bits as well.
 The CDI is simply mocked here. It was created with the command
-dd if=/dev/urandom bs=1 count=5 status=none | xxd -i
+dd if=/dev/urandom bs=1 count=32 status=none | xxd -i
 
 
 [1] Hardware Requirements for a Device Identifier Composition Engine
@@ -72,8 +72,8 @@ void
 _plat__GetEPS(uint16_t Size, uint8_t *EndorsementSeed)
 {
     // The EPS is 512 bits, so we need SHA512
-    char sha512_buf[64];
-    char data[] = "EPS"; // TODO: Use TCI of fTPM here
+    char sha512_buf[64]; // TODO: Maybe replace constant 64 with a definition provided by TPM, e.g., PRIMARY_SEED_SIZE
+    char data[] = "EPS";
     int res;
 
     IMSG("Requested EPS Size = %" PRIu16 "", Size);
