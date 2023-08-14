@@ -82,43 +82,4 @@ Generate_Ek_Pub(char *buffer, size_t *len)
     *len = publicArea.unique.rsa.t.size;
 
     return result;
-
-    /*
-    CreatePrimary_In in;
-    // This also sets the sensitive data to zero, just as required by the spec
-    memset(&in, 0, sizeof(in));
-
-    in.primaryHandle = TPM_RH_ENDORSEMENT;
-
-    in.inPublic.publicArea.type = TPM_ALG_RSA;
-    in.inPublic.publicArea.nameAlg = TPM_ALG_SHA256;
-    in.inPublic.publicArea.objectAttributes = TPMA_OBJECT_fixedTPM | TPMA_OBJECT_fixedParent | TPMA_OBJECT_sensitiveDataOrigin | TPMA_OBJECT_adminWithPolicy | TPMA_OBJECT_restricted | TPMA_OBJECT_decrypt;
-    in.inPublic.publicArea.authPolicy.t.size = 32;
-    memcpy(in.inPublic.publicArea.authPolicy.t.buffer, authPolicyValue, sizeof(authPolicyValue));
-    in.inPublic.publicArea.parameters.symDetail.sym.algorithm = TPM_ALG_AES;
-    in.inPublic.publicArea.parameters.symDetail.sym.keyBits.aes = 128;
-    in.inPublic.publicArea.parameters.symDetail.sym.mode.aes = TPM_ALG_CFB;
-    in.inPublic.publicArea.parameters.asymDetail.scheme.scheme = TPM_ALG_NULL;                 // Details already set to NULL
-    in.inPublic.publicArea.parameters.asymDetail.scheme.details.anySig.hashAlg = TPM_ALG_NULL; // Details already set to NULL
-    in.inPublic.publicArea.parameters.rsaDetail.keyBits = 2048;
-    in.inPublic.publicArea.parameters.rsaDetail.exponent = 0;
-    in.inPublic.publicArea.unique.rsa.t.size = 256; // Buffer is already set to 0
-
-    CreatePrimary_Out out;
-    memset(&out, 0, sizeof(out));
-
-    DMSG("Execute TPM2_CreatePrimary");
-    result = TPM2_CreatePrimary(&in, &out);
-
-    DMSG("Result of TPM2_CreatePrimary: 0x%x", result);
-
-    if (result == TPM_RC_SUCCESS)
-    {
-        DMSG("Public key size: %d", out.outPublic.publicArea.unique.rsa.t.size);
-        DMSG("Public key start: %x %x %x %x", out.outPublic.publicArea.unique.rsa.t.buffer[0], out.outPublic.publicArea.unique.rsa.t.buffer[1], out.outPublic.publicArea.unique.rsa.t.buffer[2], out.outPublic.publicArea.unique.rsa.t.buffer[3]);
-        DMSG("Public key followup: %x %x %x %x", out.outPublic.publicArea.unique.rsa.t.buffer[4], out.outPublic.publicArea.unique.rsa.t.buffer[5], out.outPublic.publicArea.unique.rsa.t.buffer[6], out.outPublic.publicArea.unique.rsa.t.buffer[7]);
-    }
-
-    return TPM_RC_SUCCESS;
-    */
 }
