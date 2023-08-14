@@ -32,6 +32,11 @@ Generate_Ek_Pub(char *buffer, size_t *len)
     memset(&sensitive, 0, sizeof(sensitive));
     memset(&rand, 0, sizeof(rand));
     memset(&inSensitive, 0, sizeof(inSensitive));
+    memset(&name, 0, sizeof(name));
+
+    // TODO: Here, the default template is used. But manufacturers may supply a proprietary template at a specific NV index
+    // So, check this one first, and use the default template as a fallback.
+    // That's also how the TPM EK Profile spec defines the procedure.
 
     // These are the values for the default RSA template as defined by the TPM EK Profile spec in Appendix B
     publicArea.type = TPM_ALG_RSA;
