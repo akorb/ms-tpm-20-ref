@@ -81,6 +81,7 @@ srcs-y += platform/EPS.c
 srcs-y += platform/PlatformACT.c
 srcs-y += reference/RuntimeSupport.c
 srcs-y += platform/fTPM_helpers.c
+srcs-y += platform/Generate_Ek_Pub.c
 
 srcs-y += fTPM.c
 

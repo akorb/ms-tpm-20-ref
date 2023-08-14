@@ -140,7 +140,7 @@ static TEE_Result get_tpm_event_log(unsigned char *buf, size_t *len)
 }
 #endif // MEASURED_BOOT
 
-static TEE_Result do_attestation()
+static TEE_Result do_attestation(const char *ekPub, const size_t ekPubLen)
 {
     uint32_t param_types = 0;
     TEE_Param params[TEE_NUM_PARAMS] = { };
@@ -158,13 +158,16 @@ static TEE_Result do_attestation()
     }
 
     param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT, TEE_PARAM_TYPE_MEMREF_OUTPUT,
-                                  TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE);
+                                  TEE_PARAM_TYPE_MEMREF_INPUT, TEE_PARAM_TYPE_NONE);
 
     params[0].memref.buffer = buffer_crts;
     params[0].memref.size = sizeof(buffer_crts);
 
     params[1].memref.buffer = buffer_sizes;
     params[1].memref.size = sizeof(buffer_sizes);
+
+    params[2].memref.buffer = ekPub;
+    params[2].memref.size = ekPubLen;
 
     res = TEE_InvokeTACommand(session, TEE_TIMEOUT_INFINITE,
                               PTA_ATTESTATION_GET_EKCERT_CHAIN,
@@ -211,12 +214,6 @@ TEE_Result TA_CreateEntryPoint(void)
         }
         return TEE_SUCCESS;
     }
-
-    // TODO: Ensure that user cannot change EK during runtime
-
-    // Maybe that's by design, or I need to configure it.
-    // TODO: Generate EPS, then EKpub, and give it to attestation function
-    do_attestation();
 
     // Initialize NV admin state
     _admin__NvInitState();
@@ -287,6 +284,22 @@ Exit:
 
     // Initialization complete
     fTPMInitialized = true;
+
+    // TODO: Ensure that user cannot change EK during runtime
+    // Maybe that's by design, or I need to configure it.
+    
+    char pubKey[256];
+    size_t pubKeySize = sizeof(pubKey);
+    Generate_Ek_Pub(pubKey, &pubKeySize);
+
+    DMSG("Public key length: 0x%x. Dump:\n", pubKeySize);
+    for (uint32_t x = 0; x < pubKeySize; x += 8) {
+        DMSG("%08x: %2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x\n", x,
+                pubKey[x + 0], pubKey[x + 1], pubKey[x + 2], pubKey[x + 3],
+                pubKey[x + 4], pubKey[x + 5], pubKey[x + 6], pubKey[x + 7]);
+    }
+
+    do_attestation(pubKey, pubKeySize);
 
 #ifdef MEASURED_BOOT
     // Extend existing TPM Event Log.
@@ -420,8 +433,8 @@ static TEE_Result fTPM_Submit_Command(uint32_t  param_types,
 
     // Check if this is a PPI Command
     if (!_admin__PPICommand(cmdLen, cmdBuf, &respLen, &respBuf)) {
-        // If not, pass through to TPM
-        ExecuteCommand(cmdLen, cmdBuf, &respLen, &respBuf);
+            // If not, pass through to TPM
+            ExecuteCommand(cmdLen, cmdBuf, &respLen, &respBuf);
     }
 
     // Unfortunately, this cannot be done until after we have our response in
