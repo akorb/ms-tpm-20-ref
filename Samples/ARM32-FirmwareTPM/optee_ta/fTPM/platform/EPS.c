@@ -71,6 +71,8 @@ static int hmac_sha512(uint8_t *result, const void *data, const size_t dataSize,
 void
 _plat__GetEPS(uint16_t Size, uint8_t *EndorsementSeed)
 {
+    // Primary Seed Properties are generally defined in TPM Spec Architecture Part 1, section 14.3
+
     // The EPS is 512 bits, so we need SHA512
     char sha512_buf[64]; // TODO: Maybe replace constant 64 with a definition provided by TPM, e.g., PRIMARY_SEED_SIZE
     char data[] = "EPS";
