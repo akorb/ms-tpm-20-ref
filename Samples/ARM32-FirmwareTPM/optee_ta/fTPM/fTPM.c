@@ -290,16 +290,23 @@ Exit:
     
     char pubKey[256];
     size_t pubKeySize = sizeof(pubKey);
-    Generate_Ek_Pub(pubKey, &pubKeySize);
-
-    DMSG("Public key length: 0x%x. Dump:\n", pubKeySize);
-    for (uint32_t x = 0; x < pubKeySize; x += 8) {
-        DMSG("%08x: %2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x\n", x,
-                pubKey[x + 0], pubKey[x + 1], pubKey[x + 2], pubKey[x + 3],
-                pubKey[x + 4], pubKey[x + 5], pubKey[x + 6], pubKey[x + 7]);
+    TPM_RC result = Generate_Ek_Pub(pubKey, &pubKeySize);
+    if (result != TPM_RC_SUCCESS)
+    {
+        EMSG("EK template could not be generated. Failed with code 0x%02x", result);
+        EMSG("Skipping attestation");
     }
+    else
+    {
+        DMSG("Public key length: 0x%x. Dump:\n", pubKeySize);
+        for (uint32_t x = 0; x < pubKeySize; x += 8) {
+            DMSG("%08x: %2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x\n", x,
+                    pubKey[x + 0], pubKey[x + 1], pubKey[x + 2], pubKey[x + 3],
+                    pubKey[x + 4], pubKey[x + 5], pubKey[x + 6], pubKey[x + 7]);
+        }
 
-    do_attestation(pubKey, pubKeySize);
+        do_attestation(pubKey, pubKeySize);
+    }
 
 #ifdef MEASURED_BOOT
     // Extend existing TPM Event Log.
