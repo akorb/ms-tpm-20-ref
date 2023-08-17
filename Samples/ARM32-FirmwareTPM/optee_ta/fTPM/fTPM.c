@@ -234,6 +234,9 @@ TEE_Result TA_CreateEntryPoint(void)
         DMSG("TPM_Manufacture\n");
 #endif
         TPM_Manufacture(1);
+    } else {
+        // Update EPS anyways, even if fTPM has been already initialized once in the past.
+        updateEPS();
     }
 
     // "Power-On" the platform

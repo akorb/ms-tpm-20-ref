@@ -39,6 +39,7 @@
 
 #include "TpmError.h"
 #include "Admin.h"
+#include <Tpm.h>
 
 #include <tee_internal_api.h>
 #include <tee_internal_api_extensions.h>
@@ -112,4 +113,11 @@ _plat__GetEPS(uint16_t Size, uint8_t *EndorsementSeed)
         }
     }
 #endif
+}
+
+void updateEPS()
+{
+    _plat__GetEPS(gp.EPSeed.t.size, gp.EPSeed.t.buffer);
+    NV_SYNC_PERSISTENT(EPSeed);
+    DMSG("Updated EPS");
 }
