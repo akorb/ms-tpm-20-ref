@@ -45,7 +45,10 @@
 #include "stdint.h"
 #include "malloc.h"
 #include "string.h"
+#include "secrets.h"
 
+#include <string_ext.h>
+#include <BaseTypes.h>
 #include <tee_internal_api.h>
 #include <tee_internal_api_extensions.h>
 
@@ -79,6 +82,15 @@
 // The base Object ID for fTPM storage
 //
 static const UINT32 s_StorageObjectID = 0x54504D00;	// 'TPM00'
+
+
+#define CRYPTO_IV_SIZE 12
+#define CRYPTO_TAG_SIZE 16
+
+#define CRYPTO_IV_ID_OFFSET 0
+#define CRYPTO_TAG_ID_OFFSET 1
+
+static const UINT32 s_CryptoMetadataStartID = s_StorageObjectID + NV_BLOCK_COUNT;
 
 //
 // Object handle list for persistent storage objects containing NV
@@ -119,12 +131,101 @@ static const UINT32 firmwareV2 = FIRMWARE_V2;
 //
 static UINT64 s_chipRevision = 0;
 
+
+// 12 byte IV is the recommended size
+static TEE_ObjectHandle IV_handle = TEE_HANDLE_NULL;
+static uint8_t IV_buffer[NV_BLOCK_COUNT][CRYPTO_IV_SIZE] = { 0 };
+
+// 16 byte tag is the recommended size
+static TEE_ObjectHandle tag_handle = TEE_HANDLE_NULL;
+static uint8_t tag_buffer[NV_BLOCK_COUNT][CRYPTO_TAG_SIZE] = { 0 };
+
 //
 // This offset puts the revision field immediately following the TPM Admin
 // state. The Admin space in NV is down to ~16 bytes but is padded out to
 // 256bytes to avoid alignment issues and allow for growth.
 //
 #define NV_CHIP_REVISION_OFFSET ((NV_MEMORY_SIZE) + (TPM_STATE_SIZE))
+
+#define CHECK(res, name, action) do {			\
+		if ((res) != TEE_SUCCESS) {		\
+			DMSG(name ": 0x%08x", (res));	\
+			action				\
+		}					\
+	} while(0)
+
+
+static TEE_OperationHandle encryption_op = NULL;
+
+static TEE_Result initCryptoOp(TEE_OperationHandle *crypto_op, uint32_t mode, uint8_t *aes_key, size_t keysizeBytes)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	if (*crypto_op != NULL)
+	{
+		DMSG("Already initialized");
+		return res;
+	}
+
+    const uint32_t keysizeBits = (uint32_t)keysizeBytes * 8;
+
+	TEE_ObjectHandle hkey = TEE_HANDLE_NULL;
+	TEE_Attribute attr = { };
+
+	res = TEE_AllocateOperation(crypto_op, TEE_ALG_AES_GCM, mode, keysizeBits);
+	CHECK(res, "TEE_AllocateOperation", return res;);
+	res = TEE_AllocateTransientObject(TEE_TYPE_AES, keysizeBits, &hkey);
+	CHECK(res, "TEE_AllocateTransientObject", return res;);
+
+	attr.attributeID = TEE_ATTR_SECRET_VALUE;
+	attr.content.ref.buffer = aes_key;
+	attr.content.ref.length = keysizeBytes;
+
+	res = TEE_PopulateTransientObject(hkey, &attr, 1);
+	CHECK(res, "TEE_PopulateTransientObject", return res;);
+
+	res = TEE_SetOperationKey(*crypto_op, hkey);
+	CHECK(res, "TEE_SetOperationKey", return res;);
+
+	TEE_FreeTransientObject(hkey);
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result encryptBlock(TEE_OperationHandle crypto_op, uint8_t *data, size_t datalen, uint8_t *encrypted, size_t encrypted_len, uint8_t *iv_in, size_t ivlen, uint8_t *tag_out, size_t tag_len)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+    res = TEE_AEInit(crypto_op, iv_in, ivlen, tag_len * 8, 0, 0);
+	CHECK(res, "TEE_AEInit", return res;);
+
+    res = TEE_AEEncryptFinal(crypto_op, data, datalen, encrypted, &encrypted_len, tag_out, &tag_len);
+	CHECK(res, "TEE_AEEncryptFinal", return res;);
+
+    TEE_ResetOperation(crypto_op);
+
+    return TEE_SUCCESS;
+}
+
+static TEE_Result decryptBlock(TEE_OperationHandle crypto_op, uint8_t *data, size_t datalen, uint8_t *decrypted, size_t decrypted_len, uint8_t *iv_in, size_t ivlen, uint8_t *tag_out, size_t tag_len)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+    res = TEE_AEInit(crypto_op, iv_in, ivlen, tag_len * 8, 0, 0);
+	CHECK(res, "TEE_AEInit", return res;);
+
+    res = TEE_AEDecryptFinal(crypto_op, data, datalen, decrypted, &decrypted_len, tag_out, tag_len);
+	CHECK(res, "TEE_AEDecryptFinal", return res;);
+
+    TEE_ResetOperation(crypto_op);
+
+    return TEE_SUCCESS;
+}
+
+static void freeCryptoOp(TEE_OperationHandle *crypto_op)
+{
+    TEE_FreeOperation(*crypto_op);
+    *crypto_op = NULL;
+}
 
 VOID
 _plat__NvInitFromStorage()
@@ -149,6 +250,12 @@ _plat__NvInitFromStorage()
 	//
 
 	initialized = TRUE;
+	//
+	// We only decrypt in this function.
+	// So, create the handle locally and destroy it right afterwards to not keep any unrequired resources.
+	// Encryption is required much more often, so we initialize it here to a global variable.
+	TEE_OperationHandle decryption_op = NULL;
+	initCryptoOp(&decryption_op, TEE_MODE_DECRYPT, storage_key, sizeof(storage_key));
 
 	// Collect storage objects and init NV.
 	for (i = 0; i < NV_BLOCK_COUNT; i++) {
@@ -208,8 +315,10 @@ _plat__NvInitFromStorage()
 		}
 		else {
 			// Successful open, now read fTPM storage object.
+
+			uint8_t encrypted[NV_BLOCK_SIZE];
 			Result = TEE_ReadObjectData(s_NVStore[i],
-										(void *)&(s_NV[i * NV_BLOCK_SIZE]),
+										encrypted,
 										NV_BLOCK_SIZE,
 										&bytesRead);
 
@@ -220,6 +329,9 @@ _plat__NvInitFromStorage()
 #endif
 				goto Error;
 			}
+			
+			Result = decryptBlock(decryption_op, encrypted, NV_BLOCK_SIZE, (void *)&(s_NV[i * NV_BLOCK_SIZE]), NV_BLOCK_SIZE, IV_buffer[i], CRYPTO_IV_SIZE, tag_buffer[i], CRYPTO_TAG_SIZE);
+        	CHECK(Result, "decryptBlock", return Result;);
 
 #ifdef fTPMDebug
 			IMSG("Read fTPM storage object, i: 0x%x, s: 0x%x, id: 0x%x, h:0x%x\n",
@@ -227,6 +339,8 @@ _plat__NvInitFromStorage()
 #endif
 		}
 	}
+
+	freeCryptoOp(&decryption_op);
 
 	// Storage objects are open and valid, next validate revision
 	s_chipRevision = ((((UINT64)firmwareV2) << 32) | (firmwareV1));
@@ -267,6 +381,11 @@ Error:
 			s_NVStore[i] = TEE_HANDLE_NULL;
 		}
 	}
+	memzero_explicit(s_NV, NV_CHIP_MEMORY_SIZE);
+	TEE_CloseObject(IV_handle);
+	TEE_CloseObject(tag_handle);
+	IV_handle = TEE_HANDLE_NULL;
+	tag_handle = TEE_HANDLE_NULL;
 
 	return;
 }
@@ -301,10 +420,25 @@ _plat__NvWriteBack()
 			if (Result != TEE_SUCCESS) {
 				goto Error;
 			}
+			Result = TEE_SeekObjectData(IV_handle, 0, TEE_DATA_SEEK_SET);
+			if (Result != TEE_SUCCESS) {
+				goto Error;
+			}
+			Result = TEE_SeekObjectData(tag_handle, 0, TEE_DATA_SEEK_SET);
+			if (Result != TEE_SUCCESS) {
+				goto Error;
+			}
+
+			// Generate new IV at each write to hard drive
+			TEE_GenerateRandom(IV_buffer[i], CRYPTO_IV_SIZE);
+
+			uint8_t encrypted[NV_BLOCK_SIZE];
+			Result = encryptBlock(encryption_op, (void *)&(s_NV[i * NV_BLOCK_SIZE]), NV_BLOCK_SIZE, encrypted, NV_BLOCK_SIZE, IV_buffer[i], CRYPTO_IV_SIZE, tag_buffer[i], CRYPTO_TAG_SIZE);
+        	CHECK(Result, "encryptBlock", return Result;);
 
 			// Write out this block.
             Result = TEE_WriteObjectData(s_NVStore[i],
-									     (void *)&(s_NV[i * NV_BLOCK_SIZE]),
+									     encrypted,
                                          NV_BLOCK_SIZE);
 			if (Result != TEE_SUCCESS) {
 				goto Error;
@@ -321,6 +455,36 @@ _plat__NvWriteBack()
 			// Success?
 			if (Result != TEE_SUCCESS) {
 				goto Error;
+			}
+
+			Result = TEE_WriteObjectData(IV_handle, IV_buffer, sizeof(IV_buffer));
+			CHECK(Result, "TEE_WriteObjectData", goto Error;);
+			Result = TEE_WriteObjectData(tag_handle, tag_buffer, sizeof(tag_buffer));
+			CHECK(Result, "TEE_WriteObjectData", goto Error;);
+
+			UINT32 ivObjID = s_CryptoMetadataStartID + CRYPTO_IV_ID_OFFSET;
+			UINT32 tagObjID = s_CryptoMetadataStartID + CRYPTO_TAG_ID_OFFSET;
+
+			TEE_CloseObject(IV_handle);
+            Result = TEE_OpenPersistentObject(TEE_STORAGE_PRIVATE,
+                                              (void *)&ivObjID,
+                                              sizeof(ivObjID),
+                                              TA_STORAGE_FLAGS,
+                                              &IV_handle);
+			if (Result != TEE_SUCCESS) {
+				DMSG("Failed to reopen IV handle");
+			}
+
+
+			TEE_CloseObject(tag_handle);
+            Result = TEE_OpenPersistentObject(TEE_STORAGE_PRIVATE,
+                                              (void *)&tagObjID,
+                                              sizeof(tagObjID),
+                                              TA_STORAGE_FLAGS,
+                                              &tag_handle);
+
+			if (Result != TEE_SUCCESS) {
+				DMSG("Failed to reopen Tag handle");
 			}
 
 			// Clear dirty bit.
@@ -342,6 +506,11 @@ Error:
 			s_NVStore[i] = TEE_HANDLE_NULL;
 		}
 	}
+	memzero_explicit(s_NV, NV_CHIP_MEMORY_SIZE);
+	TEE_CloseObject(IV_handle);
+	TEE_CloseObject(tag_handle);
+	IV_handle = TEE_HANDLE_NULL;
+	tag_handle = TEE_HANDLE_NULL;
 
 	return;
 }
@@ -351,6 +520,66 @@ BOOL
 _plat__NvNeedsManufacture()
 {
     return s_NVChipFileNeedsManufacture;
+}
+
+static TEE_Result initIVAndTagBlocks()
+{
+	TEE_Result Result;
+	UINT32 ivObjID = s_CryptoMetadataStartID + CRYPTO_IV_ID_OFFSET;
+	UINT32 tagObjID = s_CryptoMetadataStartID + CRYPTO_TAG_ID_OFFSET;
+
+	Result = TEE_OpenPersistentObject(TEE_STORAGE_PRIVATE,
+										&ivObjID,
+										sizeof(ivObjID),
+										TA_STORAGE_FLAGS,
+										&IV_handle);
+	if (Result != TEE_SUCCESS)
+	{
+		Result = TEE_CreatePersistentObject(TEE_STORAGE_PRIVATE,
+										&ivObjID,
+										sizeof(ivObjID),
+										TA_STORAGE_FLAGS,
+										TEE_HANDLE_NULL,
+										IV_buffer,
+										sizeof(IV_buffer),
+										&IV_handle);
+		CHECK(Result, "TEE_CreatePersistentObject", return Result;);
+	} else {
+		size_t actuallyRead = 0;
+		Result = TEE_ReadObjectData(IV_handle, IV_buffer, sizeof(IV_buffer), &actuallyRead);
+		CHECK(Result, "TEE_ReadObjectData", return Result;);
+		if (actuallyRead != sizeof(IV_buffer))
+		{
+			DMSG("Failed to read IV block. Expected %d bytes, got %d bytes.", sizeof(IV_buffer), actuallyRead);
+		}
+	}
+
+	
+	Result = TEE_OpenPersistentObject(TEE_STORAGE_PRIVATE,
+										&tagObjID,
+										sizeof(tagObjID),
+										TA_STORAGE_FLAGS,
+										&tag_handle);
+	if (Result != TEE_SUCCESS)
+	{
+		Result = TEE_CreatePersistentObject(TEE_STORAGE_PRIVATE,
+											&tagObjID,
+											sizeof(tagObjID),
+											TA_STORAGE_FLAGS,
+											TEE_HANDLE_NULL,
+											tag_buffer,
+											sizeof(tag_buffer),
+											&tag_handle);
+		CHECK(Result, "TEE_CreatePersistentObject", return Result;);
+	} else {
+		size_t actuallyRead = 0;
+		Result = TEE_ReadObjectData(tag_handle, tag_buffer, sizeof(tag_buffer), &actuallyRead);
+		CHECK(Result, "TEE_ReadObjectData", return Result;);
+		if (actuallyRead != sizeof(tag_buffer))
+		{
+			DMSG("Failed to read tag block. Expected %d bytes, got %d bytes.", sizeof(tag_buffer), actuallyRead);
+		}
+	}
 }
 
 //***_plat__NVEnable()
@@ -392,6 +621,9 @@ _plat__NVEnable(
     // Prepare for potential failure to retreieve NV from storage
     s_chipRevision = ((((UINT64)firmwareV2) << 32) | (firmwareV1));
     *(UINT64*)&(s_NV[NV_CHIP_REVISION_OFFSET]) = s_chipRevision;
+
+	initIVAndTagBlocks();
+	initCryptoOp(&encryption_op, TEE_MODE_ENCRYPT, storage_key, sizeof(storage_key));
 
     // Pick up our NV memory.
     _plat__NvInitFromStorage();
@@ -467,6 +699,13 @@ _plat__NVDisable(
 			s_NVStore[i] = TEE_HANDLE_NULL;
 		}
 	}
+	memzero_explicit(s_NV, NV_CHIP_MEMORY_SIZE);
+	TEE_CloseObject(IV_handle);
+	TEE_CloseObject(tag_handle);
+	IV_handle = TEE_HANDLE_NULL;
+	tag_handle = TEE_HANDLE_NULL;
+
+	freeCryptoOp(&encryption_op);
 
 	// We're no longer init-ed
 	s_NVInitialized = FALSE;
