@@ -45,6 +45,7 @@
 #include <pta_attestation.h>
 
 #include "fTPM.h"
+#include "secrets.h"
 
 #define TA_ALL_PARAM_TYPE(type) TEE_PARAM_TYPES(type, type, type, type)
 
@@ -205,6 +206,8 @@ TEE_Result TA_CreateEntryPoint(void)
     DMSG("Entry Point\n");
 #endif
 
+    initSecrets();
+
     // If we've been here before, don't init again.
     if (fTPMInitialized) {
         // We may have had TA_DestroyEntryPoint called but we didn't
@@ -212,6 +215,7 @@ TEE_Result TA_CreateEntryPoint(void)
         if (_plat__NVEnable(NULL) == 0) {
             TEE_Panic(TEE_ERROR_BAD_STATE);
         }
+        destroySecrets();
         return TEE_SUCCESS;
     }
 
@@ -220,6 +224,7 @@ TEE_Result TA_CreateEntryPoint(void)
 
     // If we fail to open fTPM storage we cannot continue.
     if (_plat__NVEnable(NULL) == 0) {
+        destroySecrets();
         TEE_Panic(TEE_ERROR_BAD_STATE);
     }
 
@@ -329,6 +334,7 @@ Exit:
     }
 #endif
 
+    destroySecrets();
     return TEE_SUCCESS;
 }
 

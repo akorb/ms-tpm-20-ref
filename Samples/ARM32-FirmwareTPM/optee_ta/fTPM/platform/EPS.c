@@ -40,66 +40,18 @@
 #include "TpmError.h"
 #include "Admin.h"
 #include <Tpm.h>
+#include "secrets.h"
 
 #include <tee_internal_api.h>
 #include <tee_internal_api_extensions.h>
-#include <mbedtls/md.h>
 
-/*
-According to [1], "the DICE creates this CDI using a one-way function with at least the same security strength as the
-attestation process."
-
-Our TCIs are SHA256 values. So, the CDI should be 256 bits as well.
-The CDI is simply mocked here. It was created with the command
-dd if=/dev/urandom bs=1 count=32 status=none | xxd -i
-
-
-[1] Hardware Requirements for a Device Identifier Composition Engine
-*/
-
-static uint8_t CDI[] = {0xd4, 0x9e, 0x05, 0x71, 0xe1, 0x8f, 0x66, 0xce, 0xf6, 0x75, 0x19, 0xed,
-  0xfa, 0x79, 0xd8, 0xcb, 0xf5, 0x75, 0x3f, 0x76, 0x72, 0x44, 0x88, 0xae,
-  0x91, 0x28, 0xb4, 0x3f, 0x94, 0xaf, 0x4a, 0x04};
-
-static int hmac_sha512(uint8_t *result, const void *data, const size_t dataSize, const uint8_t *key,
-				   const size_t keySize)
-{
-	const mbedtls_md_info_t *info_sha512 = mbedtls_md_info_from_type(MBEDTLS_MD_SHA512);
-
-	return mbedtls_md_hmac(info_sha512, key, keySize, data, dataSize, result);
-}
 
 void
 _plat__GetEPS(uint16_t Size, uint8_t *EndorsementSeed)
 {
-    // Primary Seed Properties are generally defined in TPM Spec Architecture Part 1, section 14.3
-
-    // The EPS is 512 bits, so we need SHA512
-    char sha512_buf[64]; // TODO: Maybe replace constant 64 with a definition provided by TPM, e.g., PRIMARY_SEED_SIZE
-    char data[] = "EPS";
-    int res;
-
     IMSG("Requested EPS Size = %" PRIu16 "", Size);
-    
     pAssert(Size <= 64);
-
-    // Based on this formula from [1]
-    // HMAC(UDS, H(First Mutable Code))
-    // It depends on CDI which represents the previous boot chain,
-    // and it also depends on the TCI of the fTPM TA.
-    // In other words, if the fTPM TA or any component of the previous boot chain changes,
-    // the EPS changes as well.
-    res = hmac_sha512(sha512_buf, data, sizeof(data), CDI, sizeof(CDI));
-
-    memcpy(EndorsementSeed, sha512_buf, Size);
-
-     // We don't need the CDI anymore. Erase it to make it less likely to be leaked
-    memzero_explicit(CDI, sizeof(CDI));
-
-    if (res != 0) {
-        IMSG(" failed\n  !  hmac_sha512 "
-             "returned -0x%04x", (unsigned int)-res);
-    }
+    memcpy(EndorsementSeed, EPS, Size);
 
 #ifdef fTPMDebug
     {
