@@ -331,7 +331,42 @@ _plat__NvInitFromStorage()
 			}
 			
 			Result = decryptBlock(decryption_op, encrypted, NV_BLOCK_SIZE, (void *)&(s_NV[i * NV_BLOCK_SIZE]), NV_BLOCK_SIZE, IV_buffer[i], CRYPTO_IV_SIZE, tag_buffer[i], CRYPTO_TAG_SIZE);
-        	CHECK(Result, "decryptBlock", return Result;);
+			if (Result != TEE_SUCCESS)
+			{	
+				if (Result == TEE_ERROR_MAC_INVALID)
+				{
+					IMSG("The MAC of a block does not match.");
+					IMSG("Go to failsafe mode, and clear all blocks to zero.");
+
+					// Clear whole NV memory to zero
+					memzero_explicit(s_NV, NV_CHIP_MEMORY_SIZE);
+					
+					// Re-Initialize all blocks, set to 0
+					for (i = 0; i < NV_BLOCK_COUNT; i++) {
+						if (s_NVStore[i] != TEE_HANDLE_NULL)
+							TEE_CloseObject(s_NVStore[i]);
+						objID = s_StorageObjectID + i;
+						Result = TEE_CreatePersistentObject(TEE_STORAGE_PRIVATE,
+										        (void *)&objID,
+										        sizeof(objID),
+										        TA_STORAGE_FLAGS | TEE_DATA_FLAG_OVERWRITE,
+										        TEE_HANDLE_NULL,
+										        (void *)&(s_NV[i * NV_BLOCK_SIZE]),
+										        NV_BLOCK_SIZE,
+										        &s_NVStore[i]);
+						#ifdef fTPMDebug
+							IMSG("Re-initialized fTPM storage object, i: 0x%02x, s: 0x%02x, id: 0x%02x, h:0x%02x\n",
+								i, NV_BLOCK_SIZE, objID, s_NVStore[i]);
+						#endif
+					}
+
+					break;
+				}
+				else
+				{
+					CHECK(Result, "decryptBlock", return Result;);
+				}
+			}
 
 #ifdef fTPMDebug
 			IMSG("Read fTPM storage object, i: 0x%x, s: 0x%x, id: 0x%x, h:0x%x\n",
