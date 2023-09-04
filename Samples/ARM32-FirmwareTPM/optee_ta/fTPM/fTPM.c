@@ -239,9 +239,6 @@ TEE_Result TA_CreateEntryPoint(void)
         DMSG("TPM_Manufacture\n");
 #endif
         TPM_Manufacture(1);
-    } else {
-        // Update EPS anyways, even if fTPM has been already initialized once in the past.
-        updateEPS();
     }
 
     // "Power-On" the platform
@@ -249,6 +246,11 @@ TEE_Result TA_CreateEntryPoint(void)
 
     // Internal init for reference implementation
     _TPM_Init();
+
+    // Unconditionally update the EPS
+    // If the system state did not change, it will be the same EPS, and the content is overwritten with the same content.
+    // Otherwise, the EPS will have a new value, yielding a new EK invalidating each previously generated EKcert.
+    updateEPS();
 
 #ifdef fTPMDebug
     DMSG("Init Complete\n");
