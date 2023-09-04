@@ -40,7 +40,7 @@
 #include "TpmError.h"
 #include "Admin.h"
 #include <Tpm.h>
-#include "secrets.h"
+#include "Secrets.h"
 
 #include <tee_internal_api.h>
 #include <tee_internal_api_extensions.h>

@@ -45,7 +45,7 @@
 #include "stdint.h"
 #include "malloc.h"
 #include "string.h"
-#include "secrets.h"
+#include "Secrets.h"
 
 #include <string_ext.h>
 #include <BaseTypes.h>

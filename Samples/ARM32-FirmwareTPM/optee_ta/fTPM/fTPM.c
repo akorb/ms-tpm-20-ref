@@ -42,22 +42,11 @@
 #include <pta_system.h>
 #include <fTPM_helpers.h>
 #include <fTPM_event_log.h>
-#include <pta_attestation.h>
 
 #include "fTPM.h"
-#include "secrets.h"
+#include "Attestation.h"
 
 #define TA_ALL_PARAM_TYPE(type) TEE_PARAM_TYPES(type, type, type, type)
-
-// The certificates are stored here in DER format
-// For our certificates, they are always a bit smaller than 1000 bytes.
-// We expect a certificate chain of length 5.
-// So, give a 5 * 1000 bytes buffer
-static uint8_t buffer_crts[5000];
-
-// first element is length of chain
-// Array size must be at least length of chain + 1
-static uint16_t buffer_sizes[8];
 
 //
 // Ensure we have only one active session
@@ -140,49 +129,6 @@ static TEE_Result get_tpm_event_log(unsigned char *buf, size_t *len)
     return res;
 }
 #endif // MEASURED_BOOT
-
-static TEE_Result do_attestation(const char *ekPub, const size_t ekPubLen)
-{
-    uint32_t param_types = 0;
-    TEE_Param params[TEE_NUM_PARAMS] = { };
-
-    TEE_TASessionHandle session = TEE_HANDLE_NULL;
-    TEE_Result res = TEE_ERROR_GENERIC;
-    uint32_t ret_origin = 0;
-    const TEE_UUID pta_uuid = PTA_ATTESTATION_UUID;
-
-    res = TEE_OpenTASession(&pta_uuid, TEE_TIMEOUT_INFINITE, 0, NULL, &session, &ret_origin);
-    if (res != TEE_SUCCESS) {
-        EMSG("TEE_OpenTASession failed with code 0x%x origin 0x%x",
-             res, ret_origin);
-        return res;
-    }
-
-    param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT, TEE_PARAM_TYPE_MEMREF_OUTPUT,
-                                  TEE_PARAM_TYPE_MEMREF_INPUT, TEE_PARAM_TYPE_NONE);
-
-    params[0].memref.buffer = buffer_crts;
-    params[0].memref.size = sizeof(buffer_crts);
-
-    params[1].memref.buffer = buffer_sizes;
-    params[1].memref.size = sizeof(buffer_sizes);
-
-    params[2].memref.buffer = ekPub;
-    params[2].memref.size = ekPubLen;
-
-    res = TEE_InvokeTACommand(session, TEE_TIMEOUT_INFINITE,
-                              PTA_ATTESTATION_GET_EKCERT_CHAIN,
-                              param_types, params, &ret_origin);
-    TEE_CloseTASession(session);
-
-    if (res != TEE_SUCCESS) {
-        EMSG("TEE_InvokeTACommand failed with code 0x%x origin 0x%x",
-             res, ret_origin);
-        return res;
-    }
-
-    return TEE_SUCCESS;
-}
 
 //
 // Called when TA instance is created. This is the first call to the TA.
@@ -283,7 +229,7 @@ Clear:
     ExecuteCommand(STARTUP_SIZE, startupClear, &respLen, &respBuf);
 
 Exit:
-    Provision(_plat__NvNeedsManufacture());
+    ProvisionBeforeAttestation(_plat__NvNeedsManufacture());
 
     // Init is complete, indicate so in fTPM admin state.
     g_chipFlags.fields.TpmStatePresent = 1;
@@ -302,7 +248,7 @@ Exit:
     }
     else
     {
-        DMSG("Public key length: 0x%x. Dump:\n", pubKeySize);
+        DMSG("Public key length: 0x%02x. Dump:\n", pubKeySize);
         for (uint32_t x = 0; x < pubKeySize; x += 8) {
             DMSG("%08x: %2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x\n", x,
                     pubKey[x + 0], pubKey[x + 1], pubKey[x + 2], pubKey[x + 3],
@@ -310,6 +256,8 @@ Exit:
         }
 
         do_attestation(pubKey, pubKeySize);
+        
+        ProvisionAfterAttestation(_plat__NvNeedsManufacture());
     }
 
 #ifdef MEASURED_BOOT

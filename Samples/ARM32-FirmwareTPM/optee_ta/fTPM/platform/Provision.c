@@ -10,7 +10,7 @@
 #include <Tpm.h>
 
 
-TPM_RC Provision(int isFirstBoot)
+TPM_RC ProvisionBeforeAttestation(int isFirstBoot)
 {
     // Unconditionally update the EPS
     // If the system state did not change, it will be the same EPS, and the content is overwritten with the same content.
@@ -18,7 +18,7 @@ TPM_RC Provision(int isFirstBoot)
     updateEPS();
 
     TPM_RC result = TPM_RC_SUCCESS;
-    
+
     if (isFirstBoot)
     {
         // TODO: Store EKcert in NV Index
@@ -26,6 +26,18 @@ TPM_RC Provision(int isFirstBoot)
 
         if (result == TPM_RC_SUCCESS)
             result = StoreEmptyEkNonceInNvIndex();
+    }
+
+    return result;
+}
+
+TPM_RC ProvisionAfterAttestation(int isFirstBoot)
+{
+    TPM_RC result = TPM_RC_SUCCESS;
+
+    if (isFirstBoot)
+    {
+        result = StoreEkCertificateInNvIndex();
     }
 
     return result;

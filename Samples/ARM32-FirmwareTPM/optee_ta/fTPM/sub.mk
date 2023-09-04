@@ -83,7 +83,8 @@ srcs-y += reference/RuntimeSupport.c
 srcs-y += platform/fTPM_helpers.c
 srcs-y += platform/EK.c
 srcs-y += platform/Provision.c
-srcs-y += platform/secrets.c
+srcs-y += platform/Secrets.c
+srcs-y += platform/Attestation.c
 
 srcs-y += fTPM.c
 

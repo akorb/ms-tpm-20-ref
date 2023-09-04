@@ -16,7 +16,10 @@
 #include <NV_Write_fp.h>
 #include <Marshal_fp.h>
 
+#include "Attestation.h"
+
 // From TPM EK Profile spec
+#define EK_RSA_CERTIFICATE_NV_INDEX 0x01c00002
 #define EK_RSA_NONCE_NV_INDEX 0x01c00003
 #define EK_RSA_TEMPLATE_NV_INDEX 0x01c00004
 
@@ -252,6 +255,42 @@ DefineAndStoreInNVIndex(TPMI_RH_NV_AUTH hierarchy, TPMA_NV attributes, TPMI_RH_N
     if (result != TPM_RC_SUCCESS)
     {
         DMSG("TPM2_NV_Write failed with 0x%04x", result);
+        return result;
+    }
+
+    return TPM_RC_SUCCESS;
+}
+
+static void GetEkCert(uint8_t **ekCert, uint16_t *size)
+{
+    uint16_t chainLength = buffer_sizes[0];
+    uint8_t *crt = buffer_crts;
+
+    int i;
+    for (i = 1; i < chainLength; i++)
+    {
+        crt += buffer_sizes[i];
+    }
+
+    *ekCert = crt;
+    *size = buffer_sizes[i];
+}
+
+TPM_RC StoreEkCertificateInNvIndex()
+{
+    uint8_t *ekCert;
+    uint16_t size;
+    GetEkCert(&ekCert, &size);
+
+    TPM_RC result = DefineAndStoreInNVIndex(
+        TPM_RH_PLATFORM,
+        TPMA_NV_PPWRITE | TPMA_NV_PPREAD | TPMA_NV_OWNERREAD | TPMA_NV_AUTHREAD | TPMA_NV_NO_DA | TPMA_NV_PLATFORMCREATE,
+        EK_RSA_CERTIFICATE_NV_INDEX,
+        ekCert, size);
+
+    if (result != TPM_RC_SUCCESS)
+    {
+        DMSG("DefineAndStoreInNVIndex failed with 0x%04x", result);
         return result;
     }
 

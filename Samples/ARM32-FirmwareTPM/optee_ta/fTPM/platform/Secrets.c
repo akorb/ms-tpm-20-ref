@@ -1,4 +1,4 @@
-#include "secrets.h"
+#include "Secrets.h"
 #include <mbedtls/md.h>
 #include <string_ext.h>
 #include <tee_internal_api.h>
