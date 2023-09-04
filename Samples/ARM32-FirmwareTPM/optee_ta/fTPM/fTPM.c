@@ -247,11 +247,6 @@ TEE_Result TA_CreateEntryPoint(void)
     // Internal init for reference implementation
     _TPM_Init();
 
-    // Unconditionally update the EPS
-    // If the system state did not change, it will be the same EPS, and the content is overwritten with the same content.
-    // Otherwise, the EPS will have a new value, yielding a new EK invalidating each previously generated EKcert.
-    updateEPS();
-
 #ifdef fTPMDebug
     DMSG("Init Complete\n");
 #endif
@@ -288,21 +283,14 @@ Clear:
     ExecuteCommand(STARTUP_SIZE, startupClear, &respLen, &respBuf);
 
 Exit:
+    Provision(_plat__NvNeedsManufacture());
+
     // Init is complete, indicate so in fTPM admin state.
     g_chipFlags.fields.TpmStatePresent = 1;
     _admin__SaveChipFlags();
 
     // Initialization complete
     fTPMInitialized = true;
-
-    // TODO: Maybe create a provision function which does all the provision stuff (Setting EPS, EK Template, EK Nonce),
-    // and a flag indicating whether it's the first boot. Set EPS always, EK Template and EK Nonce only on boot
-    // Therefore, also write EKcert to according NVindex
-
-    if (_plat__NvNeedsManufacture()) {
-        StoreSigningEkTemplateInNvIndex();
-        StoreEmptyEkNonceInNvIndex();
-    }
     
     char pubKey[256];
     size_t pubKeySize = sizeof(pubKey);
