@@ -47,9 +47,7 @@ static void initEPS()
 static void initStorageKey()
 {
     const uint8_t data[] = "DATA STORAGE KEY";
-    DMSG("Storage key: %02x %02x %02x %02x", storage_key[0], storage_key[1], storage_key[2], storage_key[3]);
     derive_from_CDI(storage_key, MBEDTLS_MD_SHA1, data, sizeof(data));
-    DMSG("Storage key: %02x %02x %02x %02x", storage_key[0], storage_key[1], storage_key[2], storage_key[3]);
 }
 
 /**
