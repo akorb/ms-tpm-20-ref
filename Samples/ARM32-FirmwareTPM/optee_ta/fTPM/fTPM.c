@@ -293,15 +293,21 @@ Exit:
     // Initialization complete
     fTPMInitialized = true;
 
-    // TODO: Ensure that user cannot change EK during runtime
-    // Maybe that's by design, or I need to configure it.
+    // TODO: Maybe create a provision function which does all the provision stuff (Setting EPS, EK Template, EK Nonce),
+    // and a flag indicating whether it's the first boot. Set EPS always, EK Template and EK Nonce only on boot
+    // Therefore, also write EKcert to according NVindex
+
+    if (_plat__NvNeedsManufacture()) {
+        StoreSigningEkTemplateInNvIndex();
+        StoreEmptyEkNonceInNvIndex();
+    }
     
     char pubKey[256];
     size_t pubKeySize = sizeof(pubKey);
-    TPM_RC result = Generate_Ek_Pub(pubKey, &pubKeySize);
+    TPM_RC result = GenerateEkPub(pubKey, &pubKeySize);
     if (result != TPM_RC_SUCCESS)
     {
-        EMSG("EK template could not be generated. Failed with code 0x%02x", result);
+        EMSG("EKpub could not be generated. Failed with code 0x%02x", result);
         EMSG("Skipping attestation");
     }
     else
