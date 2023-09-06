@@ -5,6 +5,13 @@
 #include <tee_internal_api.h>
 #include <tee_internal_api_extensions.h>
 
+/*
+ * Do not change the order of these includes!
+ * The behavior of the inclusion of Tpm.h is modified by TpmProfile.h.
+ * The include of Tpm.h alone would fail.
+ */
+#include <TpmProfile.h>
+#include <Tpm.h>
 
 // The certificates are stored here in DER format
 // For our certificates, they are always a bit smaller than 1000 bytes.
@@ -17,6 +24,7 @@ extern uint8_t buffer_crts[5000];
 extern uint16_t buffer_sizes[8];
 
 
-TEE_Result do_attestation(const char *ekPub, const size_t ekPubLen);
+TPM_RC sign_nonce(const char *nonce, const size_t nonceSize, char *outputBuf, size_t *outputBufSize);
+TEE_Result do_attestation(void);
 
 #endif /* ATTESTATION_H */

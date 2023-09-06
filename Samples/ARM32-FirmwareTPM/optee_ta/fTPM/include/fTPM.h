@@ -84,11 +84,11 @@ extern void ExecuteCommand(
 // External functions supporting TPM initialization
 //
 extern int  _plat__NVEnable(void *platParameter);
-extern int  TPM_Manufacture(bool firstTime);
+extern int  TPM_Manufacture(int firstTime);
 extern bool _plat__NvNeedsManufacture(void);
 extern void _TPM_Init(void);
-extern void _plat__Signal_PowerOn(void);
-extern void _plat__NVDisable(void);
+extern int _plat__Signal_PowerOn(void);
+extern void _plat__NVDisable(int delete);
 extern void _admin__SaveChipFlags(void);
 
 //

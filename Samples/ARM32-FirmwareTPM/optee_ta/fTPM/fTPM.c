@@ -152,7 +152,7 @@ TEE_Result TA_CreateEntryPoint(void)
     DMSG("Entry Point\n");
 #endif
 
-    initSecrets();
+    initStorageKey();
 
     // If we've been here before, don't init again.
     if (fTPMInitialized) {
@@ -161,7 +161,7 @@ TEE_Result TA_CreateEntryPoint(void)
         if (_plat__NVEnable(NULL) == 0) {
             TEE_Panic(TEE_ERROR_BAD_STATE);
         }
-        destroySecrets();
+        destroyShortlivingSecrets();
         return TEE_SUCCESS;
     }
 
@@ -170,7 +170,7 @@ TEE_Result TA_CreateEntryPoint(void)
 
     // If we fail to open fTPM storage we cannot continue.
     if (_plat__NVEnable(NULL) == 0) {
-        destroySecrets();
+        destroyAllSecrets();
         TEE_Panic(TEE_ERROR_BAD_STATE);
     }
 
@@ -229,7 +229,18 @@ Clear:
     ExecuteCommand(STARTUP_SIZE, startupClear, &respLen, &respBuf);
 
 Exit:
-    ProvisionBeforeAttestation(_plat__NvNeedsManufacture());
+
+    /** 
+     * No matter how alphabetically sorted names flatter,
+     * the order of these calls matter.
+     *  - Andreas Korb (05.09.2023)
+     */
+
+    initEPS();
+    ProvisionBeforeAttestation(_plat__NvNeedsManufacture()); // EPS has to be set before calling that
+    initEkKeys();  // Has to happen after provision, such that the thereby stored EK template is used
+    do_attestation();
+    ProvisionAfterAttestation(_plat__NvNeedsManufacture()); // Store the resulting EK cert in the according NV index
 
     // Init is complete, indicate so in fTPM admin state.
     g_chipFlags.fields.TpmStatePresent = 1;
@@ -237,28 +248,7 @@ Exit:
 
     // Initialization complete
     fTPMInitialized = true;
-    
-    char pubKey[256];
-    size_t pubKeySize = sizeof(pubKey);
-    TPM_RC result = GenerateEkPub(pubKey, &pubKeySize);
-    if (result != TPM_RC_SUCCESS)
-    {
-        EMSG("EKpub could not be generated. Failed with code 0x%02x", result);
-        EMSG("Skipping attestation");
-    }
-    else
-    {
-        DMSG("Public key length: 0x%02x. Dump:\n", pubKeySize);
-        for (uint32_t x = 0; x < pubKeySize; x += 8) {
-            DMSG("%08x: %2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x\n", x,
-                    pubKey[x + 0], pubKey[x + 1], pubKey[x + 2], pubKey[x + 3],
-                    pubKey[x + 4], pubKey[x + 5], pubKey[x + 6], pubKey[x + 7]);
-        }
 
-        do_attestation(pubKey, pubKeySize);
-        
-        ProvisionAfterAttestation(_plat__NvNeedsManufacture());
-    }
 
 #ifdef MEASURED_BOOT
     // Extend existing TPM Event Log.
@@ -278,7 +268,7 @@ Exit:
     }
 #endif
 
-    destroySecrets();
+    destroyShortlivingSecrets();
     return TEE_SUCCESS;
 }
 
@@ -292,7 +282,7 @@ void TA_DestroyEntryPoint(void)
     // will be no further commands sent to the TPM. Right now, just close
     // our storage object, becasue the TPM driver should have already
     // shutdown cleanly.
-    _plat__NVDisable();
+    _plat__NVDisable(0);
     return;
 }
 
@@ -482,6 +472,26 @@ static TEE_Result fTPM_Emulate_PPI(uint32_t  param_types,
 
 static TEE_Result fTPM_Attest(uint32_t  param_types,
                               TEE_Param params[4]) {
+
+    /**
+     * param1 [OUT]: Certificate chain
+     * param2 [OUT]: Certificate sizes
+     * param3 [OUT]: Signature of nonce
+     * param4 [IN]:  Nonce to sign
+     */
+    uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
+                               TEE_PARAM_TYPE_MEMREF_OUTPUT,
+                               TEE_PARAM_TYPE_MEMREF_OUTPUT,
+                               TEE_PARAM_TYPE_MEMREF_INPUT);
+    
+    if (param_types != exp_param_types)
+    {
+#ifdef fTPMDebug
+        IMSG("Bad param type(s)\n");
+#endif
+        return TEE_ERROR_BAD_PARAMETERS;
+    }
+
     if (params[0].memref.size < sizeof(buffer_crts) || params[1].memref.size < sizeof(buffer_sizes))
     {
         EMSG("Buffer for certificates: Given: %d. Required: %d", params[0].memref.size, sizeof(buffer_crts));
@@ -489,8 +499,16 @@ static TEE_Result fTPM_Attest(uint32_t  param_types,
         return TEE_ERROR_SHORT_BUFFER;
     }
 
+    if (params[2].memref.size < 256)
+    {
+        EMSG("Buffer for signature: Given: %d. Required: %d", params[2].memref.size, 256);
+        return TEE_ERROR_SHORT_BUFFER;
+    }
+
     memcpy(params[0].memref.buffer, buffer_crts, sizeof(buffer_crts));
     memcpy(params[1].memref.buffer, buffer_sizes, sizeof(buffer_sizes));
+
+    sign_nonce(params[3].memref.buffer, params[3].memref.size, params[2].memref.buffer, &params[2].memref.size);
 
     return TEE_SUCCESS;
 }

@@ -221,7 +221,7 @@ _plat__NVEnable(
 // Disable NV memory
 LIB_EXPORT void
 _plat__NVDisable(
-    void
+    int delete
     );
 
 //***_plat__IsNvAvailable()

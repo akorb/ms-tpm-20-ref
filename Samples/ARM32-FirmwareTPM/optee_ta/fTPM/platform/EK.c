@@ -16,6 +16,7 @@
 #include <NV_Write_fp.h>
 #include <Marshal_fp.h>
 
+#include "EK.h"
 #include "Attestation.h"
 
 // From TPM EK Profile spec
@@ -151,7 +152,7 @@ GetSigningEkTemplate(TPMT_PUBLIC *publicArea)
     return result;
 }
 
-static TPM_RC
+TPM_RC
 GetEkTemplate(TPMT_PUBLIC *publicArea)
 {
     // The nonce is as big as the cryptosystem.
@@ -348,58 +349,4 @@ StoreEmptyEkNonceInNvIndex()
     }
 
     return TPM_RC_SUCCESS;
-}
-
-TPM_RC
-GenerateEkPub(char *buffer, size_t *len)
-{
-    TPM_RC result;
-    int in_len = *len;
-
-    TPMT_PUBLIC publicArea;
-    TPMT_SENSITIVE sensitive;
-    DRBG_STATE rand;
-    TPM2B_SENSITIVE_CREATE inSensitive;
-    TPM2B_NAME name;
-    memset(&publicArea, 0, sizeof(publicArea));
-    memset(&sensitive, 0, sizeof(sensitive));
-    memset(&rand, 0, sizeof(rand));
-    memset(&inSensitive, 0, sizeof(inSensitive));
-    memset(&name, 0, sizeof(name));
-
-    result = GetEkTemplate(&publicArea);
-    if (result != TPM_RC_SUCCESS)
-        return result;
-
-    // The following code is copied and adapted from the `TPM2_CreatePrimary` function.
-    // The `TPM2_CreatePrimary` function creates a transient object to store the key in,
-    // we don't want that. We really only want to get a buffer with the key, that's all. No side-effects.
-    result = DRBG_InstantiateSeeded(&rand,
-                                    &HierarchyGetPrimarySeed(TPM_RH_ENDORSEMENT)->b,
-                                    PRIMARY_OBJECT_CREATION,
-                                    (TPM2B *)PublicMarshalAndComputeName(&publicArea, &name),
-                                    &inSensitive.sensitive.data.b);
-    if (result != TPM_RC_SUCCESS)
-    {
-        EMSG("DRBG_InstantiateSeeded failed with 0x%x", result);
-        return result;
-    }
-
-    result = CryptRsaGenerateKey(&publicArea, &sensitive, &rand);
-    if (result != TPM_RC_SUCCESS)
-    {
-        EMSG("CryptRsaGenerateKey failed with 0x%x", result);
-        return result;
-    }
-
-    if (in_len < publicArea.unique.rsa.t.size)
-    {
-        EMSG("Provided too short buffer. Expected: %d, Got: %d", publicArea.unique.rsa.t.size, len);
-        return TPM_RC_MEMORY;
-    }
-
-    memcpy(buffer, publicArea.unique.rsa.t.buffer, publicArea.unique.rsa.t.size);
-    *len = publicArea.unique.rsa.t.size;
-
-    return result;
 }
