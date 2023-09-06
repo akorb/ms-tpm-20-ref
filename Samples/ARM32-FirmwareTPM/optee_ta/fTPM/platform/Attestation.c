@@ -72,8 +72,10 @@ TPM_RC sign_nonce(const char *nonce, const size_t nonceSize, char *outputBuf, si
     }
     digest.t.size = SHA256_DIGEST_SIZE;
 
-    signature.sigAlg = TPM_ALG_RSASSA;
-    signature.signature.rsassa.hash = TPM_ALG_SHA256;
+    // We use PSS because it has a security proof, instead of the older PKCS#1 v1.5 padding.
+    // See https://crypto.stackexchange.com/a/48417
+    signature.sigAlg = TPM_ALG_RSAPSS;
+    signature.signature.rsapss.hash = TPM_ALG_SHA256;
 
     key.publicArea = EkSigningPubKey;
     key.sensitive = EkSigningPrivKey;
@@ -85,24 +87,24 @@ TPM_RC sign_nonce(const char *nonce, const size_t nonceSize, char *outputBuf, si
         return TPM_RC_FAILURE;
     }
 
-    if (outputBufSize < signature.signature.rsassa.sig.t.size)
+    if (outputBufSize < signature.signature.rsapss.sig.t.size)
     {
         EMSG("Buffer too small to store signature in.");
         return TPM_RC_MEMORY;
     }
 
-    memcpy(outputBuf, signature.signature.rsassa.sig.t.buffer, signature.signature.rsassa.sig.t.size);
-    *outputBufSize = signature.signature.rsassa.sig.t.size;
+    memcpy(outputBuf, signature.signature.rsapss.sig.t.buffer, signature.signature.rsapss.sig.t.size);
+    *outputBufSize = signature.signature.rsapss.sig.t.size;
 
     // keep as less copies of secrets as possible
     memzero_explicit(&key.sensitive, sizeof(key.sensitive));
 
     DMSG("Signature:");
-    for (int x = 0; x < sizeof(signature.signature.rsassa.sig.t.buffer); x += 8)
+    for (int x = 0; x < sizeof(signature.signature.rsapss.sig.t.buffer); x += 8)
     {
         DMSG("%08x: %2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x\n", x,
-                    signature.signature.rsassa.sig.t.buffer[x + 0], signature.signature.rsassa.sig.t.buffer[x + 1], signature.signature.rsassa.sig.t.buffer[x + 2], signature.signature.rsassa.sig.t.buffer[x + 3],
-                    signature.signature.rsassa.sig.t.buffer[x + 4], signature.signature.rsassa.sig.t.buffer[x + 5], signature.signature.rsassa.sig.t.buffer[x + 6], signature.signature.rsassa.sig.t.buffer[x + 7]);
+                    signature.signature.rsapss.sig.t.buffer[x + 0], signature.signature.rsapss.sig.t.buffer[x + 1], signature.signature.rsapss.sig.t.buffer[x + 2], signature.signature.rsapss.sig.t.buffer[x + 3],
+                    signature.signature.rsapss.sig.t.buffer[x + 4], signature.signature.rsapss.sig.t.buffer[x + 5], signature.signature.rsapss.sig.t.buffer[x + 6], signature.signature.rsapss.sig.t.buffer[x + 7]);
     }
 
     return result;
