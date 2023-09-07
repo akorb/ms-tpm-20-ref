@@ -143,10 +143,12 @@ GetSigningEkTemplate(TPMT_PUBLIC *publicArea)
     if (result == TPM_RC_SUCCESS)
     {
         // Overrides
-        publicArea->objectAttributes = TPMA_OBJECT_fixedTPM | TPMA_OBJECT_fixedParent | TPMA_OBJECT_sensitiveDataOrigin | TPMA_OBJECT_adminWithPolicy | TPMA_OBJECT_sign;
+        publicArea->objectAttributes = TPMA_OBJECT_fixedTPM | TPMA_OBJECT_fixedParent | TPMA_OBJECT_sensitiveDataOrigin | TPMA_OBJECT_adminWithPolicy | TPMA_OBJECT_sign | TPMA_OBJECT_restricted;
         publicArea->parameters.rsaDetail.symmetric.algorithm = TPM_ALG_NULL;
         publicArea->parameters.rsaDetail.symmetric.keyBits.aes = 0;
         publicArea->parameters.rsaDetail.symmetric.mode.aes = 0;
+        publicArea->parameters.rsaDetail.scheme.scheme = TPM_ALG_RSAPSS;
+        publicArea->parameters.rsaDetail.scheme.details.rsapss.hashAlg = TPM_ALG_SHA256;
     }
 
     return result;
