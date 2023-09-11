@@ -336,7 +336,7 @@ _plat__NvInitFromStorage()
 				if (Result == TEE_ERROR_MAC_INVALID)
 				{
 					IMSG("The MAC of a block does not match.");
-					IMSG("Go to failsafe mode, and clear all blocks to zero.");
+					IMSG("Reset the TPM.");
 
 					// Clear whole NV memory to zero
 					memzero_explicit(s_NV, NV_CHIP_MEMORY_SIZE);

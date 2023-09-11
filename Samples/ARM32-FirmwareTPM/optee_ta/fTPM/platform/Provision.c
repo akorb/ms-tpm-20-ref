@@ -10,35 +10,27 @@
 #include <Tpm.h>
 
 
-TPM_RC ProvisionBeforeAttestation(int isFirstBoot)
+TPM_RC ProvisionWithStaticData()
 {
-    // Unconditionally update the EPS
-    // If the system state did not change, it will be the same EPS, and the content is overwritten with the same content.
-    // Otherwise, the EPS will have a new value, yielding a new EK invalidating each previously generated EKcert.
-    updateEPS();
-
     TPM_RC result = TPM_RC_SUCCESS;
 
-    if (isFirstBoot)
-    {
-        // TODO: Store EKcert in NV Index
-        result = StoreSigningEkTemplateInNvIndex();
+    result = StoreSigningEkTemplateInNvIndex();
 
-        if (result == TPM_RC_SUCCESS)
-            result = StoreEmptyEkNonceInNvIndex();
-    }
+    if (result == TPM_RC_SUCCESS)
+        result = StoreEmptyEkNonceInNvIndex();
 
     return result;
 }
 
-TPM_RC ProvisionAfterAttestation(int isFirstBoot)
+/**
+ * This provisions the fTPM with data that may change on each boot.
+ * For example, because it depends on the result of the attestation.
+ */
+TPM_RC ProvisionWithDynamicData()
 {
     TPM_RC result = TPM_RC_SUCCESS;
 
-    if (isFirstBoot)
-    {
-        result = StoreEkCertificateInNvIndex();
-    }
+    result = StoreEkCertificateInNvIndex();
 
     return result;
 }

@@ -25,6 +25,9 @@ extern uint16_t buffer_sizes[8];
 
 
 TPM_RC sign_nonce(const char *nonce, const size_t nonceSize, char *outputBuf, size_t *outputBufSize);
-TEE_Result do_attestation(void);
+TEE_Result attestItself(void);
+
+TPM_RC ProvisionWithStaticData();
+TPM_RC ProvisionWithDynamicData();
 
 #endif /* ATTESTATION_H */

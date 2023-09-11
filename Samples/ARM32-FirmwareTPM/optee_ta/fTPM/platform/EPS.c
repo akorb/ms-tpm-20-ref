@@ -50,26 +50,8 @@ void
 _plat__GetEPS(uint16_t Size, uint8_t *EndorsementSeed)
 {
     IMSG("Requested EPS Size = %" PRIu16 "", Size);
-    pAssert(Size <= 64);
+    pAssert(Size <= sizeof(EPS));
+
+    // Copy the EPS generated from our secret data
     memcpy(EndorsementSeed, EPS, Size);
-
-#ifdef fTPMDebug
-    {
-        uint32_t x;
-        uint8_t *seed = EndorsementSeed;
-        DMSG("seedLen 0x%x. Seed dump:\n", Size);
-        for (x = 0; x < Size; x = x + 8) {
-            DMSG("%08x: %2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x\n", x,
-                 seed[x + 0], seed[x + 1], seed[x + 2], seed[x + 3],
-                 seed[x + 4], seed[x + 5], seed[x + 6], seed[x + 7]);
-        }
-    }
-#endif
-}
-
-void updateEPS()
-{
-    _plat__GetEPS(gp.EPSeed.t.size, gp.EPSeed.t.buffer);
-    NV_SYNC_PERSISTENT(EPSeed);
-    DMSG("Updated EPS");
 }

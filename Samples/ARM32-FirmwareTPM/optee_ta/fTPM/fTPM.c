@@ -159,6 +159,7 @@ TEE_Result TA_CreateEntryPoint(void)
         // We may have had TA_DestroyEntryPoint called but we didn't
         // actually get torn down. Re-NVEnable, just in case.
         if (_plat__NVEnable(NULL) == 0) {
+            destroyAllSecrets();
             TEE_Panic(TEE_ERROR_BAD_STATE);
         }
         destroyShortlivingSecrets();
@@ -184,6 +185,9 @@ TEE_Result TA_CreateEntryPoint(void)
 #ifdef fTPMDebug
         DMSG("TPM_Manufacture\n");
 #endif
+        initEPS();
+
+        // This sets the EPS as well
         TPM_Manufacture(1);
     }
 
@@ -236,11 +240,12 @@ Exit:
      *  - Andreas Korb (05.09.2023)
      */
 
-    initEPS();
-    ProvisionBeforeAttestation(_plat__NvNeedsManufacture()); // EPS has to be set before calling that
+    if (_plat__NvNeedsManufacture()) {
+        ProvisionWithStaticData();
+    }
     initEkKeys();  // Has to happen after provision, such that the thereby stored EK template is used
-    do_attestation();
-    ProvisionAfterAttestation(_plat__NvNeedsManufacture()); // Store the resulting EK cert in the according NV index
+    attestItself();
+    ProvisionWithDynamicData(); // Store the resulting EK cert in the according NV index
 
     // Init is complete, indicate so in fTPM admin state.
     g_chipFlags.fields.TpmStatePresent = 1;

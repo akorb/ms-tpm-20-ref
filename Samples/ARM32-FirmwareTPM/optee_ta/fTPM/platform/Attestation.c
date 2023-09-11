@@ -110,7 +110,7 @@ TPM_RC sign_nonce(const char *nonce, const size_t nonceSize, char *outputBuf, si
     return result;
 }
 
-TEE_Result do_attestation()
+TEE_Result attestItself()
 {
     BYTE *ekPub = EkSigningPubKey.unique.rsa.t.buffer;
     UINT16 ekPubLen = EkSigningPubKey.unique.rsa.t.size;
