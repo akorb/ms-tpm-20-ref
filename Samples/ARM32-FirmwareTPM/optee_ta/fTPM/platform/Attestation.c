@@ -14,9 +14,6 @@
 
 #include "Secrets.h"
 
-#include <CryptRsa_fp.h>
-#include <Hash_fp.h>
-
 uint8_t buffer_crts[5000] = { 0 };
 uint16_t buffer_sizes[8] = { 0 };
 
@@ -26,89 +23,6 @@ uint16_t buffer_sizes[8] = { 0 };
 			action				\
 		}					\
 	} while(0)
-
-TEE_Result hashSha256(const char *data, const size_t dataSize, char *hashOut, size_t hashOutSize)
-{
-    // Do this with TEE functions instead of TPM functions,
-    // since like this the code is much easier,
-    // because here the TEE functions handle all the separations in the right chunk sizes,
-    // while with the TPM we'd need to do that ourselves.
-
-    if (hashOutSize < SHA256_DIGEST_SIZE)
-    {
-        EMSG("Provided too short buffer to store SHA256 buffer in.");
-        return TEE_ERROR_SHORT_BUFFER;
-    }
-
-	TEE_Result res = TEE_ERROR_GENERIC;
-    TEE_OperationHandle hash_op = NULL;
-
-	res = TEE_AllocateOperation(&hash_op, TEE_ALG_SHA256, TEE_MODE_DIGEST, 0);
-	CHECK(res, "TEE_AllocateOperation", return res;);
-
-    res = TEE_DigestDoFinal(hash_op, data, dataSize, hashOut, &hashOutSize);
-	CHECK(res, "TEE_DigestDoFinal", return res;);
-
-    TEE_FreeOperation(hash_op);
-
-    return TEE_SUCCESS;
-}
-
-TPM_RC sign_nonce(const char *nonce, const size_t nonceSize, char *outputBuf, size_t *outputBufSize)
-{
-    TPM_RC result;
-    TPMT_SIGNATURE signature;
-    OBJECT key;
-    TPM2B_DIGEST digest;
-    memset(&signature, 0, sizeof(signature));
-    memset(&key, 0, sizeof(key));
-    memset(&digest, 0, sizeof(digest));
-
-    TEE_Result res = hashSha256(nonce, nonceSize, digest.t.buffer, SHA256_DIGEST_SIZE);
-    if (res != TEE_SUCCESS)
-    {
-        EMSG("hash failed with 0x%02x", res);
-        return TPM_RC_FAILURE;
-    }
-    digest.t.size = SHA256_DIGEST_SIZE;
-
-    // We use PSS because it has a security proof, instead of the older PKCS#1 v1.5 padding.
-    // See https://crypto.stackexchange.com/a/48417
-    signature.sigAlg = TPM_ALG_RSAPSS;
-    signature.signature.rsapss.hash = TPM_ALG_SHA256;
-
-    key.publicArea = EkSigningPubKey;
-    key.sensitive = EkSigningPrivKey;
-
-    result = CryptRsaSign(&signature, &key, &digest, NULL);
-    if (result != TPM_RC_SUCCESS)
-    {
-        DMSG("CryptRsaSign failed with 0x%02x", result);
-        return TPM_RC_FAILURE;
-    }
-
-    if (outputBufSize < signature.signature.rsapss.sig.t.size)
-    {
-        EMSG("Buffer too small to store signature in.");
-        return TPM_RC_MEMORY;
-    }
-
-    memcpy(outputBuf, signature.signature.rsapss.sig.t.buffer, signature.signature.rsapss.sig.t.size);
-    *outputBufSize = signature.signature.rsapss.sig.t.size;
-
-    // keep as less copies of secrets as possible
-    memzero_explicit(&key.sensitive, sizeof(key.sensitive));
-
-    DMSG("Signature:");
-    for (int x = 0; x < sizeof(signature.signature.rsapss.sig.t.buffer); x += 8)
-    {
-        DMSG("%08x: %2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x\n", x,
-                    signature.signature.rsapss.sig.t.buffer[x + 0], signature.signature.rsapss.sig.t.buffer[x + 1], signature.signature.rsapss.sig.t.buffer[x + 2], signature.signature.rsapss.sig.t.buffer[x + 3],
-                    signature.signature.rsapss.sig.t.buffer[x + 4], signature.signature.rsapss.sig.t.buffer[x + 5], signature.signature.rsapss.sig.t.buffer[x + 6], signature.signature.rsapss.sig.t.buffer[x + 7]);
-    }
-
-    return result;
-}
 
 TEE_Result attestItself()
 {

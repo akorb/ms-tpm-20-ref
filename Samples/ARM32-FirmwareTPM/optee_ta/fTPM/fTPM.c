@@ -481,13 +481,11 @@ static TEE_Result fTPM_Attest(uint32_t  param_types,
     /**
      * param1 [OUT]: Certificate chain
      * param2 [OUT]: Certificate sizes
-     * param3 [OUT]: Signature of nonce
-     * param4 [IN]:  Nonce to sign
      */
     uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_MEMREF_OUTPUT,
                                TEE_PARAM_TYPE_MEMREF_OUTPUT,
-                               TEE_PARAM_TYPE_MEMREF_OUTPUT,
-                               TEE_PARAM_TYPE_MEMREF_INPUT);
+                               TEE_PARAM_TYPE_NONE,
+                               TEE_PARAM_TYPE_NONE);
     
     if (param_types != exp_param_types)
     {
@@ -504,16 +502,8 @@ static TEE_Result fTPM_Attest(uint32_t  param_types,
         return TEE_ERROR_SHORT_BUFFER;
     }
 
-    if (params[2].memref.size < 256)
-    {
-        EMSG("Buffer for signature: Given: %d. Required: %d", params[2].memref.size, 256);
-        return TEE_ERROR_SHORT_BUFFER;
-    }
-
     memcpy(params[0].memref.buffer, buffer_crts, sizeof(buffer_crts));
     memcpy(params[1].memref.buffer, buffer_sizes, sizeof(buffer_sizes));
-
-    sign_nonce(params[3].memref.buffer, params[3].memref.size, params[2].memref.buffer, &params[2].memref.size);
 
     return TEE_SUCCESS;
 }
