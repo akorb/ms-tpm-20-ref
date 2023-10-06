@@ -147,8 +147,8 @@ GetSigningEkTemplate(TPMT_PUBLIC *publicArea)
         publicArea->parameters.rsaDetail.symmetric.algorithm = TPM_ALG_NULL;
         publicArea->parameters.rsaDetail.symmetric.keyBits.aes = 0;
         publicArea->parameters.rsaDetail.symmetric.mode.aes = 0;
-        publicArea->parameters.rsaDetail.scheme.scheme = TPM_ALG_RSAPSS;
-        publicArea->parameters.rsaDetail.scheme.details.rsapss.hashAlg = TPM_ALG_SHA256;
+        publicArea->parameters.rsaDetail.scheme.scheme = TPM_ALG_RSASSA;
+        publicArea->parameters.rsaDetail.scheme.details.rsassa.hashAlg = TPM_ALG_SHA256;
     }
 
     return result;
