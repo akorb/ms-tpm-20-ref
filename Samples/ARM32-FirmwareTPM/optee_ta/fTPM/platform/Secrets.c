@@ -61,7 +61,7 @@ void initEPS()
 
     const uint8_t data[] = "ENDORSEMENT PRIMARY SEED";
     // It depends on CDI which represents the preceeding boot chain,
-    // and the TCI of the fTPM TA.
+    // and the FWID of the fTPM TA.
     // In other words, if the fTPM TA or any component of the previous boot chain changes,
     // the EPS changes as well.
     // The EPS is 512 bits, so we need SHA512
