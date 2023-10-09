@@ -13,5 +13,6 @@ TPM_RC StoreEmptyEkNonceInNvIndex(void);
 TPM_RC StoreSigningEkTemplateInNvIndex(void);
 TPM_RC StoreEkCertificateInNvIndex(void);
 TPM_RC GetEkTemplate(TPMT_PUBLIC *publicArea);
+TPM_RC GetSigningEkTemplate(TPMT_PUBLIC *publicArea);
 
 #endif /* EK_H */

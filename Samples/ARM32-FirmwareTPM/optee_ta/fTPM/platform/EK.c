@@ -134,7 +134,7 @@ GetDefaultEkTemplate(TPMT_PUBLIC *publicArea)
     return TPM_RC_SUCCESS;
 }
 
-static TPM_RC
+TPM_RC
 GetSigningEkTemplate(TPMT_PUBLIC *publicArea)
 {
     // Start with default EK template
@@ -154,6 +154,13 @@ GetSigningEkTemplate(TPMT_PUBLIC *publicArea)
     return result;
 }
 
+/**
+ * This code is not used anymore, but I decided to leave it for potential future uses.
+ * It also shows quite nicely how the template generation is defined in the
+ * TCG EK Credential Profile for TPM Family 2.0 [Spec] (section 2.2.1.9).
+ * 
+ * [Spec] https://trustedcomputinggroup.org/resource/http-trustedcomputinggroup-org-wp-content-uploads-tcg-ek-credential-profile-v-2-5-r2_published-pdf/
+ */
 TPM_RC
 GetEkTemplate(TPMT_PUBLIC *publicArea)
 {
