@@ -69,7 +69,7 @@ void initEPS()
 
 #ifdef fTPMDebug
     {
-        DMSG("seedLen 0x%x. Seed dump:\n", sizeof(EPS));
+        DMSG("seedLen 0x%x. Endorsement Primary Seed dump:\n", sizeof(EPS));
         for (uint32_t x = 0; x < sizeof(EPS); x = x + 8) {
             DMSG("%08x: %2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x,%2.2x\n", x,
                  EPS[x + 0], EPS[x + 1], EPS[x + 2], EPS[x + 3],
