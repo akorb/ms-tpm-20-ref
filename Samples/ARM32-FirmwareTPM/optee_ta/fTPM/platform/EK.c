@@ -24,6 +24,12 @@
 #define EK_RSA_NONCE_NV_INDEX 0x01c00003
 #define EK_RSA_TEMPLATE_NV_INDEX 0x01c00004
 
+/**
+ * Use the attributes as defined by TPM PC Client Spec, section 4.5.2.1
+ * This is what the TPM PC Client Spec recommends if the EKcert should not be deletable.
+ */
+#define EK_NV_INDEX_ATTRIBUTES (TPMA_NV_POLICY_DELETE | TPMA_NV_POLICYWRITE | TPMA_NV_OWNERREAD | TPMA_NV_AUTHREAD | TPMA_NV_NO_DA | TPMA_NV_PLATFORMCREATE)
+
 
 static TPM_RC
 GetEkNonceFromNV(char *buffer, size_t *bufferLen)
@@ -242,7 +248,6 @@ DefineAndStoreInNVIndex(TPMI_RH_NV_AUTH hierarchy, TPMA_NV attributes, TPMI_RH_N
     NV_DefineSpace_In defineSpace;
     memset(&defineSpace, 0, sizeof(defineSpace));
     defineSpace.authHandle = hierarchy;
-    // I copied these attributes from the NV index of my laptop's TPM which contains the EK certificate
     defineSpace.publicInfo.nvPublic.attributes = attributes;
     defineSpace.publicInfo.nvPublic.nvIndex = nvIndex;
     defineSpace.publicInfo.nvPublic.nameAlg = TPM_ALG_SHA256;
@@ -294,7 +299,7 @@ TPM_RC StoreEkCertificateInNvIndex()
 
     TPM_RC result = DefineAndStoreInNVIndex(
         TPM_RH_PLATFORM,
-        TPMA_NV_PPWRITE | TPMA_NV_PPREAD | TPMA_NV_OWNERREAD | TPMA_NV_AUTHREAD | TPMA_NV_NO_DA | TPMA_NV_PLATFORMCREATE,
+        EK_NV_INDEX_ATTRIBUTES,
         EK_RSA_CERTIFICATE_NV_INDEX,
         ekCert, size);
 
@@ -324,7 +329,7 @@ StoreSigningEkTemplateInNvIndex()
 
     TPM_RC result = DefineAndStoreInNVIndex(
         TPM_RH_PLATFORM,
-        TPMA_NV_PPWRITE | TPMA_NV_PPREAD | TPMA_NV_OWNERREAD | TPMA_NV_AUTHREAD | TPMA_NV_NO_DA | TPMA_NV_PLATFORMCREATE,
+        EK_NV_INDEX_ATTRIBUTES,
         EK_RSA_TEMPLATE_NV_INDEX,
         buffer, dataSize);
     if (result != TPM_RC_SUCCESS)
@@ -348,7 +353,7 @@ StoreEmptyEkNonceInNvIndex()
 
     TPM_RC result = DefineAndStoreInNVIndex(
         TPM_RH_PLATFORM,
-        TPMA_NV_PPWRITE | TPMA_NV_PPREAD | TPMA_NV_OWNERREAD | TPMA_NV_AUTHREAD | TPMA_NV_NO_DA | TPMA_NV_PLATFORMCREATE,
+        EK_NV_INDEX_ATTRIBUTES,
         EK_RSA_NONCE_NV_INDEX,
         buffer, sizeof(buffer));
     if (result != TPM_RC_SUCCESS)
