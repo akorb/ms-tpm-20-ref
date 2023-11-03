@@ -27,8 +27,9 @@
 /**
  * Use the attributes as defined by TPM PC Client Spec, section 4.5.2.1
  * This is what the TPM PC Client Spec recommends if the EKcert should not be deletable.
+ * Plus TPMA_NV_PPWRITE, such that we can write the data here.
  */
-#define EK_NV_INDEX_ATTRIBUTES (TPMA_NV_POLICY_DELETE | TPMA_NV_POLICYWRITE | TPMA_NV_OWNERREAD | TPMA_NV_AUTHREAD | TPMA_NV_NO_DA | TPMA_NV_PLATFORMCREATE)
+#define EK_NV_INDEX_ATTRIBUTES (TPMA_NV_PPWRITE | TPMA_NV_POLICY_DELETE | TPMA_NV_POLICYWRITE | TPMA_NV_OWNERREAD | TPMA_NV_AUTHREAD | TPMA_NV_NO_DA | TPMA_NV_PLATFORMCREATE)
 
 
 static TPM_RC
