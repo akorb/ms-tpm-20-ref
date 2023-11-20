@@ -27,7 +27,7 @@ extern uint8_t CDI[32];
  * However, we create a TEE_Operation which copies the key to kernel space of the OP-TEE OS, so we can treat it as a short term key
  * and just use the according operation.
  */
-extern uint8_t storage_key[32];
+extern uint8_t storage_key[16];
 
 // TODO: Maybe replace constant 64 with a definition provided by TPM, e.g., PRIMARY_SEED_SIZE
 extern uint8_t EPS[64];

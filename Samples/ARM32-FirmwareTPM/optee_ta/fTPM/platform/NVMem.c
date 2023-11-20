@@ -85,7 +85,7 @@ static const UINT32 s_StorageObjectID = 0x54504D00;	// 'TPM00'
 
 
 #define CRYPTO_IV_SIZE 12
-#define CRYPTO_TAG_SIZE 16
+#define CRYPTO_TAG_SIZE 12
 
 #define CRYPTO_IV_ID_OFFSET 0
 #define CRYPTO_TAG_ID_OFFSET 1

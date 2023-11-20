@@ -25,7 +25,7 @@ uint8_t CDI[] = {0xd4, 0x9e, 0x05, 0x71, 0xe1, 0x8f, 0x66, 0xce, 0xf6, 0x75, 0x1
                  0xfa, 0x79, 0xd8, 0xcb, 0xf5, 0x75, 0x3f, 0x76, 0x72, 0x44, 0x88, 0xae,
                  0x91, 0x28, 0xb4, 0x3f, 0x94, 0xaf, 0x4a, 0x04};
 
-uint8_t storage_key[32] = { 0 };
+uint8_t storage_key[16] = { 0 };
 
 uint8_t EPS[64] = { 0 };
 
@@ -82,7 +82,7 @@ void initEPS()
 void initStorageKey()
 {
     const uint8_t data[] = "DATA STORAGE KEY";
-    derive_from_CDI(storage_key, sizeof(storage_key), MBEDTLS_MD_SHA256, data, sizeof(data));
+    derive_from_CDI(storage_key, sizeof(storage_key), MBEDTLS_MD_MD5, data, sizeof(data));
 }
 
 
